@@ -1,0 +1,25 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon index.js | browser-sync start --proxy localhost:5000 --files 'src/**/*, routes/**/*, index.js' --no-notify --no-ui"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.3.0"
+  },
+  "description": "",
+  "devDependencies": {
+    "browser-sync": "^3.0.4",
+    "nodemon": "^3.1.10"
+  }
+}
