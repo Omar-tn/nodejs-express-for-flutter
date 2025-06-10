@@ -308,6 +308,7 @@ app.get('/partners/requests', async (req, res) => {
 });
 
 
+
 app.get('/partners/search', async (req, res) => {
     const { uid, subject, field, text } = req.query;
 
@@ -337,8 +338,6 @@ app.get('/partners/search', async (req, res) => {
 });
 
 //Get studets depend on params which are in complex conditions
-
-
 
 //post requests ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
