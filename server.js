@@ -308,6 +308,37 @@ app.get('/partners/requests', async (req, res) => {
 });
 
 
+
+app.get('/partners/search', async (req, res) => {
+    const { uid, subject, field, text } = req.query;
+
+    if (!subject || !field || !text) {
+        return res.status(400).json({ error: 'Missing query parameters' });
+    }
+
+    try {
+        // Sanitize field to prevent SQL injection (allow only specific fields)
+        const allowedFields = ['name', 'firebase_uid'];
+        /*if (!allowedFields.includes(field)) {
+            return res.status(400).json({ error: 'Invalid search field' });
+        }*/
+
+        const [results] = await db.query(
+            `SELECT * FROM students WHERE ${field} LIKE ?
+             AND firebase_uid NOT IN (
+                SELECT partner_2 FROM student_partners WHERE partner_1 = ? AND subject = ?
+             )`,
+            [text, uid, subject]
+        );
+        res.status(200).json(results);
+    } catch (err) {
+        console.error('Error searching students:', err);
+        res.status(500).json({ error: 'Error searching students' });
+    }
+});
+
+//Get studets depend on params which are in complex conditions
+
 //post requests ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -458,7 +489,6 @@ app.post('/partners/requests/action', async (req, res) => {
             return res.status(400).send('You already have a partner for this subject.');
 
         }
-
 
 
         if (action === 'accept') {

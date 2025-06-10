@@ -1,25 +1,36 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.js",
+    "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "dev": "nodemon index.js | browser-sync start --proxy localhost:5000 --files 'src/**/*, routes/**/*, index.js' --no-notify --no-ui"
+
+    "start": "node server.js",
+    "watch": "nodemon server.js --ext js,json",
+    "serve": "browser-sync  start --proxy http://localhost:3000 --files 'src/**/*, routes/**/*, server.js' --no-notify --no-ui",
+    "dev": "concurrently \"npm run watch\" \"npm run serve\"",
+    "browse" : "node server.js | browser-sync start --proxy http://localhost:3000 --files 'src/**/*, routes/**/*, server.js' --no-notify --no-ui",
+    "sr" : "browser-sync reload --files 'src/**/*, routes/**/*, server.js' --no-notify --no-ui",
+    "do" : "concurrently \"npm run watch\" \"npm run browse\"",
+    "test": "nodemon test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^2.2.0",
+    "connect-livereload": "^0.6.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "firebase-admin": "^13.3.0"
+    "firebase-admin": "^13.3.0",
+    "livereload": "^0.9.3",
+    "mysql2": "^3.14.1"
   },
   "description": "",
   "devDependencies": {
     "browser-sync": "^3.0.4",
+    "concurrently": "^9.1.2",
     "nodemon": "^3.1.10"
   }
 }

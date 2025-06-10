@@ -1,5 +1,7 @@
 {
-  "watch": ["src", "routes", "index.js"],
-  "ext": "js,json",
-  "exec": "node index.js | browser-sync start --proxy 'localhost:5000' --files 'src/**/*, routes/**/*, index.js' --no-notify --no-ui"
+  "watch": ["src", "routes", "server.js"],
+  "ext": "js,json"
+  ,
+  "exec": "node server.js"
+
 }
