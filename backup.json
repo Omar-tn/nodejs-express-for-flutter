@@ -1,0 +1,11 @@
+{
+
+  "exec": "node server.js | browser-sync start --proxy http://localhost:3000 --files 'src/**/*, routes/**/*, server.js' --no-notify --no-ui",
+
+  "exec": "concurrently \"node server.js\" \"browser-sync start --proxy http://localhost:3000 --files 'src/**/*, routes/**/*, server.js' --no-notify --no-ui\"",
+  "exec": "concurrently \"node server.js\" \"npm run sr\"",
+  "exec": "concurrently \"npm run sr\" \"node server.js | browser-sync start --proxy http://localhost:3000 --files 'src/**/*, routes/**/*, server.js' --no-notify --no-ui\"",
+  "used":
+
+  "exec": "concurrently \"npm run start\" \"npm run browse\" \"npm run sr\""
+}
