@@ -90,7 +90,7 @@ connectDB()
 
 
 app.delete('/partners/request/:id', async (req, res) => {
-    const { id } = req.params;
+    const {id} = req.params;
 
     try {
         // Execute a query to delete the partner request by ID
@@ -117,39 +117,6 @@ app.delete('/partners/request/:id', async (req, res) => {
             message: 'An error occurred while deleting the partner request',
         });
     }
-});
-
-
-
-app.delete('/partners/request/:id', async (req, res) => {
-    const {id} = req.params;
-
-    try {
-        // Find and delete the partner request by ID
-        const deletedRequest = await PartnerRequest.findByIdAndDelete(id);
-
-        if (!deletedRequest) {
-            // If no request is found with the given ID
-            return res.status(404).json({
-                status: 'error',
-                message: 'Partner request not found',
-            });
-        }
-
-        // Success response
-        res.status(200).json({
-            status: 'success',
-            message: 'Partner request deleted successfully',
-        });
-    } catch (error) {
-        // Error handling
-        console.error('Error deleting partner request:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'An error occurred while deleting the partner request',
-        });
-    }
-
 });
 
 
@@ -187,14 +154,15 @@ app.get('/partners/available', async (req, res) => {
 // Check if user has confirmed partners for the subject
         const [confirmedPartners] = await db.query(
             `SELECT s.name, s.email, s.firebase_uid, sp.id, sp.subject, sp.status
-            FROM students s, student_partners sp
-            WHERE (s.firebase_uid = sp.partner_1 OR s.firebase_uid = sp.partner_2)
-              AND (  sp.partner_1 =? OR sp.partner_2 = ?  )
-              and s.firebase_uid != ?
+             FROM students s,
+                  student_partners sp
+             WHERE (s.firebase_uid = sp.partner_1 OR s.firebase_uid = sp.partner_2)
+               AND (sp.partner_1 = ? OR sp.partner_2 = ?)
+               and s.firebase_uid != ?
               AND sp.status = 'confirmed'
-            ORDER BY sp.subject ASC;`,
+             ORDER BY sp.subject ASC;`,
 
-            [uid , uid, uid] // Use uid for all three placeholders
+            [uid, uid, uid] // Use uid for all three placeholders
         );
 
 
@@ -207,14 +175,15 @@ app.get('/partners/available', async (req, res) => {
             });
         }
 
-        let msg = "none",other = "",query = "";
+        let msg = "none", other = "", query = "";
         if (confirmedPartners.length === 1) {
             if (confirmedPartners[0].subject === "GP1") {
                 msg = "GP1";
                 other = "GP2";
-                query =`SELECT name, email, firebase_uid, subject
-             FROM students, student_partners
-             WHERE firebase_uid != ? 
+                query = `SELECT name, email, firebase_uid, subject
+                         FROM students,
+                              student_partners
+                         WHERE firebase_uid != ? 
              AND firebase_uid = partner_1 
              AND status = 'pending' 
              AND subject = 'GP2'
@@ -229,9 +198,10 @@ app.get('/partners/available', async (req, res) => {
             } else if (confirmedPartners[0].subject === "GP2") {
                 msg = "GP2";
                 other = "GP1";
-                query =`SELECT name, email, firebase_uid, subject
-             FROM students, student_partners
-             WHERE firebase_uid != ? 
+                query = `SELECT name, email, firebase_uid, subject
+                         FROM students,
+                              student_partners
+                         WHERE firebase_uid != ? 
              AND firebase_uid = partner_1 
              AND status = 'pending' 
              AND subject = 'GP1'
@@ -245,12 +215,12 @@ app.get('/partners/available', async (req, res) => {
             }
 
 
-        }
-        else if (confirmedPartners.length === 0) {
+        } else if (confirmedPartners.length === 0) {
             msg = "none";
             query = `SELECT name, email, firebase_uid, subject
-            FROM students, student_partners
-            WHERE firebase_uid != ?
+                     FROM students,
+                          student_partners
+                     WHERE firebase_uid != ?
                 AND firebase_uid = partner_1
             AND status = 'pending'
             AND firebase_uid NOT IN (
@@ -275,7 +245,7 @@ app.get('/partners/available', async (req, res) => {
             confirmed: confirmedPartners,
             available: rows
         });
-        }catch (err) {
+    } catch (err) {
         res.status(500).send('Error fetching partners: ' + err.message);
     }
 });
@@ -285,16 +255,16 @@ app.get('/partners/requests', async (req, res) => {
     const uid = req.query.uid;
 
     if (!uid) {
-        return res.status(400).json({ error: 'User ID is required' });
+        return res.status(400).json({error: 'User ID is required'});
     }
 
     try {
         const [partnerRequests] = await db.query(
             `SELECT sp.id, sp.partner_1, sp.subject, sp.status, s.name AS partner_name, s.email AS partner_email
              FROM student_partners sp
-             JOIN students s ON sp.partner_1 = s.firebase_uid
+                      JOIN students s ON sp.partner_1 = s.firebase_uid
              WHERE sp.partner_2 = ?
-             AND sp.status = 'pending'
+               AND sp.status = 'pending'
              ORDER BY sp.subject`,
             [uid]
         );
@@ -302,18 +272,17 @@ app.get('/partners/requests', async (req, res) => {
         res.status(200).json(partnerRequests || []);
     } catch (err) {
         console.error('Error fetching partner requests:', err);
-        res.status(500).json({ error: 'Error fetching partner requests' });
+        res.status(500).json({error: 'Error fetching partner requests'});
     }
 
 });
 
 
-
 app.get('/partners/search', async (req, res) => {
-    const { uid, subject, field, text } = req.query;
+    const {uid, subject, field, text} = req.query;
 
     if (!subject || !field || !text) {
-        return res.status(400).json({ error: 'Missing query parameters' });
+        return res.status(400).json({error: 'Missing query parameters'});
     }
 
     try {
@@ -322,22 +291,141 @@ app.get('/partners/search', async (req, res) => {
         /*if (!allowedFields.includes(field)) {
             return res.status(400).json({ error: 'Invalid search field' });
         }*/
+        //check if user has confirmed partners for the subject
+        const [hasPartner] = await db.query(
+            `SELECT *
+             FROM student_partners
+             WHERE (partner_1 = ? OR partner_2 = ?)
+               AND subject = ?
+               AND status = 'confirmed'`,
+            [uid, uid, subject]
+        );
+
+        if (hasPartner.length > 0) {
+            return res.status(500).json({
+                message: 'User already has a partner for this subject.',
+                hasPartner: true,
+                results: []
+            });
+        }
+
 
         const [results] = await db.query(
-            `SELECT * FROM students WHERE ${field} LIKE ?
-             AND firebase_uid NOT IN (
-                SELECT partner_2 FROM student_partners WHERE partner_1 = ? AND subject = ?
-             )`,
-            [text, uid, subject]
-        );
+            `SELECT *
+             FROM students
+             WHERE ${field} LIKE ?
+               AND firebase_uid NOT IN (SELECT partner_2
+                                        FROM student_partners
+                                        WHERE partner_1 = ? AND subject = ?)`,
+            [`%${text}%`, uid, subject]
+        ); // The text variable should be `` for LIKE query if you intend partial matches
         res.status(200).json(results);
     } catch (err) {
         console.error('Error searching students:', err);
-        res.status(500).json({ error: 'Error searching students' });
+        res.status(500).json({error: 'Error searching students'});
     }
 });
 
-//Get studets depend on params which are in complex conditions
+
+// Get user's current partners
+app.get('/partners', async (req, res) => {
+    const uid = req.query.uid;
+
+    try {
+        const [partners] = await db.query(
+            `SELECT s.name, s.email, s.firebase_uid, sp.subject, sp.status 
+             FROM students s 
+             JOIN student_partners sp ON (s.firebase_uid = sp.partner_1 OR s.firebase_uid = sp.partner_2)
+             WHERE (sp.partner_1 = ? OR sp.partner_2 = ?) 
+             AND s.firebase_uid != ?
+             AND sp.status = 'confirmed'`,
+            [uid, uid, uid]
+        );
+        res.json(partners);
+    } catch (err) {
+        res.status(500).send('Error fetching partners: ' + err.message);
+    }
+});
+
+// Get available partners for groups
+app.get('/partners/available/subject', async (req, res) => {
+    const {uid, subject} = req.query;
+
+    try {
+        const [available] = await db.query(
+            `SELECT s.* FROM students s
+             WHERE s.firebase_uid != ?
+             AND s.firebase_uid NOT IN (
+                 SELECT partner_2 FROM student_partners
+                 WHERE partner_1 = ? AND subject = ?
+             )`,
+            [uid, uid, subject]
+        );
+        res.json(available);
+    } catch (err) {
+        res.status(500).send('Error fetching available partners: ' + err.message);
+    }
+});
+
+// Get pending partner requests
+app.get('/partners/pending', async (req, res) => {
+    const uid = req.query.uid;
+
+    try {
+        const [pending] = await db.query(
+            `SELECT sp.*, s.name, s.email
+             FROM student_partners sp
+             JOIN students s ON sp.partner_1 = s.firebase_uid
+             WHERE sp.partner_2 = ?
+             AND sp.status = 'pending'`,
+            [uid]
+        );
+        res.json(pending);
+    } catch (err) {
+        res.status(500).send('Error fetching pending requests: ' + err.message);
+    }
+});
+
+// Search for potential partners
+app.get('/partners/search/name', async (req, res) => {
+    const {uid, query} = req.query;
+
+    try {
+        const [results] = await db.query(
+            `SELECT s.* FROM students s
+             WHERE s.name LIKE ?
+             AND s.firebase_uid != ?`,
+            [`%${query}%`, uid]
+        );
+        res.json(results);
+    } catch (err) {
+        res.status(500).send('Error searching partners: ' + err.message);
+    }
+});
+
+
+// Get user's confirmed partnerships
+app.get('/user/partnerships', async (req, res) => {
+    const uid = req.query.uid;
+
+    if (!uid) {
+        return res.status(400).json({error: 'User ID is required'});
+    }
+
+    try {
+        const [partnerships] = await db.query(
+            `SELECT * FROM student_partners 
+             WHERE (partner_1 = ? OR partner_2 = ?)
+             AND status = 'confirmed'`,
+            [uid, uid]
+        );
+        res.status(200).json(partnerships);
+    } catch (err) {
+        console.error('Error fetching partnerships:', err);
+        res.status(500).json({error: 'Error fetching partnerships'});
+    }
+});
+
 
 //post requests ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -443,14 +531,48 @@ app.post('/feedback', async (req, res) => {
 // POST request to partner
 app.post('/partners/request', async (req, res) => {
     const {from_id, to_id, subject} = req.body;
-    if (!from_id || !to_id) return res.status(400).send('Missing fields');
+
+    // Validate required fields
+    if (!from_id || !subject) {
+        return res.status(400).send('Missing required fields');
+    }
+
+    var  p2 = to_id.trim(); // If to_id is not provided, set it to an empty string
+    p2 = p2.trim();
+
+
+    console.log(!!p2);
+    var p = p2 ? '= ' + p2 : 'is null'; // If to_id is not provided, set it to 'is null' for the query
+
+    // Prevent self-partnering
+    if (from_id === p2) {
+        return res.status(400).send('Cannot partner with yourself');
+    }
 
     try {
 
 
+        // Check for existing request from either direction
+        const [existingRequests] = await db.query(
+            `SELECT *
+             FROM student_partners
+             WHERE (partner_1 = ? AND partner_2 ${p})
+               AND subject = ? `,
+            [from_id, subject]
+        );
+
+
+        if (existingRequests.length > 0) {
+            let q = p2 ? 'A partnership request already exists between these users for this subject' : 'a public request already exists for this subject';
+
+            return res.status(400).send(q);
+        }
+
+        let v = p2 ? p2 : null; // If to_id is not provided, set it to 'null' for the query
+
         await db.query(
             'INSERT INTO student_partners (partner_1, partner_2, subject, status) VALUES (?, ?, ?, ?)',
-            [from_id, to_id, subject, 'pending']
+            [from_id, v, subject, 'pending']
         );
         res.send('Request sent');
     } catch (err) {
@@ -460,8 +582,8 @@ app.post('/partners/request', async (req, res) => {
 
 // API to handle partner request actions
 app.post('/partners/requests/action', async (req, res) => {
-    const { request_id, action } = req.body;
-    
+    const {request_id, action} = req.body;
+
     if (!request_id || !action) {
         return res.status(400).send('Missing fields');
     }
@@ -483,13 +605,12 @@ app.post('/partners/requests/action', async (req, res) => {
         // Check if the receiver is already have a partner for the subject
         const [existingPartner] = await db.query(
             'SELECT * FROM student_partners WHERE (partner_1 = ? OR partner_2 = ?) AND subject = ? AND status = "confirmed"',
-            [request[0].partner_2, request[0].subject]
+            [request[0].partner_2,request[0].partner_2, request[0].subject]
         );
         if (existingPartner.length > 0) {
             return res.status(400).send('You already have a partner for this subject.');
 
         }
-
 
         if (action === 'accept') {
             // Update the request to accepted
@@ -512,7 +633,7 @@ app.post('/partners/requests/action', async (req, res) => {
             );
 
             // Optionally, delete the request
-             await db.query(
+            await db.query(
                 'DELETE FROM student_partners WHERE id = ?',
                 [request_id]
             );
