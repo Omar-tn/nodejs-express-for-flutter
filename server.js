@@ -140,6 +140,56 @@ app.delete('/courses_announce/delete', async (req, res) => {
     }
 });
 
+// Delete all announcements and course announcements
+app.delete('/announcements/deleteAll', async (req, res) => {
+    try {
+        await db.query('DELETE FROM announcements');
+        await db.query('DELETE FROM courses_announce');
+        res.status(200).send('All announcements deleted successfully');
+    } catch (err) {
+        console.error('Error deleting all announcements:', err);
+        res.status(500).send('Error deleting all announcements: ' + err.message);
+    }
+});
+
+// Helper function to determine current semester
+function getCurrentSemester() {
+    const currentMonth = new Date().getMonth() + 1; // getMonth() returns 0-11
+    if (currentMonth >= 9 && currentMonth <= 12) {
+        return 'Fall';
+    } else if (currentMonth >= 1 && currentMonth <= 5) {
+        return 'Spring';
+    } else {
+        return 'Summer';
+    }
+}
+
+// Insert new semester announcements
+app.post('/announcements/newSemester', async (req, res) => {
+
+    const uid = req.body.uid; // Assuming uid is passed in the request body
+
+    try {
+        const semester = getCurrentSemester();
+        const currentYear = new Date().getFullYear();
+
+        // Insert semester start announcement
+        await db.query(
+            'INSERT INTO announcements (title, body, created_by) VALUES (?, ?, ?)',
+            [
+                `${semester} ${currentYear} Semester Start`,
+                `Welcome to the ${semester} ${currentYear} semester! Check course announcements for available sections.`,
+                uid
+            ]
+        );
+
+        res.status(200).send('New semester announcements created successfully');
+    } catch (err) {
+        console.error('Error creating new semester announcements:', err);
+        res.status(500).send('Error creating new semester announcements: ' + err.message);
+    }
+});
+
 
 //get requests //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -154,6 +204,141 @@ app.get('/', async (req, res) => {
         return res.status(500).json({error: 'Database error'});
     }
 });
+
+app.get('/getRole', async (req, res) => {
+    const uid = req.query.uid;
+
+    if (!uid) {
+        return res.status(400).json({error: 'User ID is required'});
+    }
+
+    try {
+        const [results] = await db.query(
+            'SELECT * FROM user WHERE uid = ?'
+            , [uid]);
+        if (results.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+        res.json(results);
+    } catch (err) {
+        console.error('Query error:', err);
+        return res.status(500).json({error: 'Database error'});
+    }
+});
+
+//*******************************8
+
+app.post('/register_user', async (req, res) => {
+
+    const {name, email, uid, role, id} = req.body;
+
+    if (!email || !uid || !role) {
+        return res.status(400).json({error: 'All fields are required'});
+    }
+
+
+    try {
+
+
+        // Check if user ID is provided
+
+
+        if (role === 'student') {
+
+
+            // Check if user already exists
+            const [existingUser] = await db.query(
+                'SELECT * FROM students WHERE firebase_uid = ?'
+                , [id]);
+            if (existingUser.length > 0) {
+
+                return res.status(400).json({error: 'User already exists'});
+            }
+
+            // Insert new user
+            const [result] = await db.query(
+                'INSERT INTO students (name, email, firebase_uid) VALUES (?, ?, ?)',
+                [name, email, id]
+            );
+            if (result.affectedRows === 0) {
+
+                return res.status(500).json({error: 'Failed to register student'});
+            }
+
+            const [ins] = await db.query(
+                'INSERT INTO user (id, email, uid, role) VALUES (?, ?, ?, ?)',
+                [id, email, uid, role]
+            );
+            if (ins.affectedRows === 0) {
+
+                return res.status(500).json({error: 'Failed to register user'});
+            }
+
+            console.log(result);
+
+            return res.status(200).json({message: 'Student registered successfully', userId: result.insertId});
+
+
+        } else if (role === 'admin') {
+            // Check if user already exists
+            const [existingUser] = await db.query('SELECT * FROM staff WHERE firebase_uid = ?'
+                , [id]);
+            if (existingUser.length > 0) {
+                return res.status(400).json({error: 'User already exists'});
+            }
+
+            // Insert new user
+            const [result] = await db.query(
+                'INSERT INTO staff (name, email, firebase_uid, role) VALUES (?, ?, ?, ?)',
+                [name, email, id, role]
+            );
+
+            if (result.affectedRows === 0) {
+
+                return res.status(500).json({error: 'Failed to register admin'});
+
+            }
+
+            const [ins] = await db.query(
+                'INSERT INTO user (id, email, uid, role) VALUES (?, ?, ?, ?)',
+                [id, email, uid, role]
+            );
+            if (ins.affectedRows === 0) {
+                return res.status(500).json({error: 'Failed to register user'});
+            }
+
+            return res.status(200).json({message: 'Admin registered successfully', userId: result.insertId});
+
+
+        } else {
+            // Invalid role
+            return res.status(400).json({error: 'Invalid role'});
+        }
+
+
+    } catch (err) {
+        console.error('Error registering user:', err);
+        res.status(500).json({error: 'Database error'});
+    }
+});
+
+
+//***************************8
+app.get('/announcements', async (req, res) => {
+
+    try {
+        const [results] = await db.query(
+            'SELECT DATE_FORMAT(created_at, \'%Y-%m-%d %H:%i\') as time , body ,title FROM announcements ORDER BY time DESC');
+        res.json(results);
+    } catch (err) {
+        console.error('Query error:', err);
+        return res.status(500).json({error: 'Database error'});
+    }
+
+});
+
+
+
 app.get('/courses', async (req, res) => {
     try {
         const [results] = await db.query('SELECT * FROM course');
@@ -165,11 +350,11 @@ app.get('/courses', async (req, res) => {
 });
 
 
-
 app.get('/coursesAnnounced', async (req, res) => {
     const studentId = req.params.id;
     try {
-        const [results] = await db.query('SELECT title, description, a.* FROM `courses_announce` a, course c WHERE a.course_id = c.id');
+        const [results] = await db.query(
+            'SELECT title, description, a.* FROM `courses_announce` a, course c WHERE a.course_id = c.id');
         res.json(results);
     } catch (err) {
         console.error('Query error:', err);
@@ -247,7 +432,35 @@ app.get('/courses/official', async (req, res) => {
     }
 });
 
+
+app.get('/userData', async (req, res) => {
+    const uid = req.query.uid;
+
+    if (!uid) {
+        return res.status(400).json({error: 'User ID is required'});
+    }
+
+    try {
+        const [results] = await db.query(
+            'SELECT s.* ' +
+            'FROM user u , students s ' +
+            ' WHERE u.uid = ? ' +
+            'and u.id = s.firebase_uid',
+            [uid]
+        );
+        if (results.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+        res.json(results[0]);
+    } catch (err) {
+        console.error('Query error:', err);
+        return res.status(500).json({error: 'Database error'});
+    }
+})
+
+
 app.get('/partners/available', async (req, res) => {
+
     const uid = req.query.uid;
 
     try {
@@ -287,6 +500,7 @@ app.get('/partners/available', async (req, res) => {
                               student_partners
                          WHERE firebase_uid != ? 
              AND firebase_uid = partner_1 
+             and partner_2 IS NULL
              AND status = 'pending' 
              AND subject = 'GP2'
              AND firebase_uid NOT IN (
@@ -324,6 +538,7 @@ app.get('/partners/available', async (req, res) => {
                           student_partners
                      WHERE firebase_uid != ?
                 AND firebase_uid = partner_1
+                and partner_2 IS NULL
             AND status = 'pending'
             AND firebase_uid NOT IN (
                 SELECT partner_2
@@ -438,11 +653,11 @@ app.get('/partners', async (req, res) => {
 
     try {
         const [partners] = await db.query(
-            `SELECT s.name, s.email, s.firebase_uid, sp.subject, sp.status 
-             FROM students s 
-             JOIN student_partners sp ON (s.firebase_uid = sp.partner_1 OR s.firebase_uid = sp.partner_2)
-             WHERE (sp.partner_1 = ? OR sp.partner_2 = ?) 
-             AND s.firebase_uid != ?
+            `SELECT s.name, s.email, s.firebase_uid, sp.subject, sp.status
+             FROM students s
+                      JOIN student_partners sp ON (s.firebase_uid = sp.partner_1 OR s.firebase_uid = sp.partner_2)
+             WHERE (sp.partner_1 = ? OR sp.partner_2 = ?)
+               AND s.firebase_uid != ?
              AND sp.status = 'confirmed'`,
             [uid, uid, uid]
         );
@@ -458,7 +673,8 @@ app.get('/partners/available/subject', async (req, res) => {
 
     try {
         const [available] = await db.query(
-            `SELECT s.* FROM students s
+            `SELECT s.*
+             FROM students s
              WHERE s.firebase_uid != ?
              AND s.firebase_uid NOT IN (
                  SELECT partner_2 FROM student_partners
@@ -480,9 +696,9 @@ app.get('/partners/pending', async (req, res) => {
         const [pending] = await db.query(
             `SELECT sp.*, s.name, s.email
              FROM student_partners sp
-             JOIN students s ON sp.partner_1 = s.firebase_uid
+                      JOIN students s ON sp.partner_1 = s.firebase_uid
              WHERE sp.partner_2 = ?
-             AND sp.status = 'pending'`,
+               AND sp.status = 'pending'`,
             [uid]
         );
         res.json(pending);
@@ -497,9 +713,10 @@ app.get('/partners/search/name', async (req, res) => {
 
     try {
         const [results] = await db.query(
-            `SELECT s.* FROM students s
+            `SELECT s.*
+             FROM students s
              WHERE s.name LIKE ?
-             AND s.firebase_uid != ?`,
+               AND s.firebase_uid != ?`,
             [`%${query}%`, uid]
         );
         res.json(results);
@@ -575,9 +792,10 @@ app.get('/user/partnerships', async (req, res) => {
 
     try {
         const [partnerships] = await db.query(
-            `SELECT * FROM student_partners 
+            `SELECT *
+             FROM student_partners
              WHERE (partner_1 = ? OR partner_2 = ?)
-             AND status = 'confirmed'`,
+               AND status = 'confirmed'`,
             [uid, uid]
         );
         res.status(200).json(partnerships);
@@ -670,6 +888,63 @@ app.get('/supervisors', async (req, res) => {
     }
 });
 
+app.get('/supervisorsOf', async (req, res) => {
+    const {uid} = req.query;
+
+    try {
+        //getting supervisors of a specific user from supervisor_requests table and its supervisor details
+        const [supervisors] = await db.query(`
+            SELECT s.name, s.email, s.firebase_uid, sr.subject, sr.status
+            FROM supervisor_requests sr 
+            JOIN staff s ON sr.supervisor_id = s.firebase_uid
+            WHERE sr.partnership_id   IN (
+                SELECT id  FROM student_partners WHERE (partner_1 = ? OR partner_2 = ?)
+                   
+            )
+              and sr.status = 'approved'
+            ORDER BY sr.subject
+        `, [uid, uid]);
+
+
+        res.status(200).json(supervisors);
+    } catch (err) {
+        console.error('Error fetching supervisors:', err);
+        res.status(500).json({error: 'Error fetching supervisors'});
+    }
+});
+
+app.get('/projects', async (req, res) => {
+
+    try {
+        const [projects] = await db.query('SELECT * ' +
+            'FROM supervisor_requests ');
+        res.status(200).json(projects);
+    } catch (err) {
+        console.error('Error fetching projects:', err);
+        res.status(500).json({error: 'Error fetching projects'});
+    }
+
+});
+
+app.get('/groups/active', async (req, res) => {
+
+
+    try {
+        const [groups] = await db.query(
+            `SELECT *
+             FROM student_partners 
+             WHERE  status = 'confirmed'`,
+        );
+        res.status(200).json(groups);
+    } catch (err) {
+        console.error('Error fetching groups:', err);
+        res.status(500).json({error: 'Error fetching groups'});
+    }
+
+});
+
+
+
 
 ///////////////get requests ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -758,7 +1033,6 @@ app.put('/api/course-requests/:requestId', async (req, res) => {
 /////////put requests ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-
 //post requests ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -791,7 +1065,7 @@ app.post('/requestSection', async (req, res) => {
             );
             if (enrollmentCheck.length === 0) {
                 return res.status(404).send('User is not enrolled in this course');
-        }
+            }
 
 
         }
@@ -840,7 +1114,6 @@ app.post('/requestSection', async (req, res) => {
     }
 
 
-
 });
 app.post('/courses_announce', async (req, res) => {
 
@@ -885,6 +1158,14 @@ app.post('/courses_announce', async (req, res) => {
             return res.status(500).send('Failed to announce course');
 
         }
+
+        //make announcement
+        await db.query(
+            'INSERT INTO announcements (title, body, created_by) VALUES (?, ?, ?)',
+            [courseDetails[0].title, `Section ${courseDetails[0].title} ${!time ? '' : `on ${time}`} has been announced`, id]
+        );
+
+
 
         res.status(200).send('Course announced successfully');
     } catch (err) {
@@ -940,8 +1221,6 @@ app.post('/courses_announce/:id/enroll', async (req, res) => {
 
         else if (course[0].participants >= course[0].max_participants)
             return res.status(200).send('Course is full');
-
-
 
 
         await db.query(
@@ -1006,7 +1285,6 @@ app.post('/courses_announce/:id/vote', async (req, res) => {
         );
 
 
-
         await db.query(
             'INSERT INTO course_votes (student_id, course_id) VALUES (?, ?)',
             [student_id, courseId]
@@ -1030,7 +1308,7 @@ app.post('/feedback', async (req, res) => {
 
     try {
         await db.query(
-            'INSERT INTO feedback (student_id, feedback_text, submitted_at) VALUES (?, ?, NOW())',
+            'INSERT INTO feedback (student_id, message) VALUES (?, ?)',
             [student_id, feedback_text]
         );
         res.send('Feedback saved');
@@ -1049,7 +1327,7 @@ app.post('/partners/request', async (req, res) => {
         return res.status(400).send('Missing required fields');
     }
 
-    var  p2 = to_id.trim(); // If to_id is not provided, set it to an empty string
+    var p2 = to_id.trim(); // If to_id is not provided, set it to an empty string
     p2 = p2.trim();
 
 
@@ -1117,7 +1395,7 @@ app.post('/partners/requests/action', async (req, res) => {
         // Check if the receiver is already have a partner for the subject
         const [existingPartner] = await db.query(
             'SELECT * FROM student_partners WHERE (partner_1 = ? OR partner_2 = ?) AND subject = ? AND status = "confirmed"',
-            [request[0].partner_2,request[0].partner_2, request[0].subject]
+            [request[0].partner_2, request[0].partner_2, request[0].subject]
         );
         if (existingPartner.length > 0) {
             return res.status(400).send('You already have a partner for this subject.');
@@ -1161,7 +1439,7 @@ app.post('/partners/requests/action', async (req, res) => {
 });
 
 app.post('/supervisor/request', async (req, res) => {
-    const {student_id, partnership_id, supervisor_id, subject, project_description} = req.body;
+    const {student_id, partnership_id, supervisor_id, subject, description} = req.body;
 
     // Validate required fields
     if (!student_id || !supervisor_id || !partnership_id || !subject) {
@@ -1169,6 +1447,17 @@ app.post('/supervisor/request', async (req, res) => {
     }
 
     try {
+
+        // Check if the partnership have a confirmed status
+        const [partnership] = await db.query(
+            'SELECT * FROM supervisor_requests WHERE partnership_id = ?  AND status = "approved"',
+            [partnership_id]
+        );
+        if (partnership.length > 0) {
+            return res.status(400).json({error: 'Partnership already has a confirmed supervisor request'});
+        }
+
+
         // Check if student already has a pending or approved request
         const [existingRequest] = await db.query(
             'SELECT * FROM supervisor_requests WHERE partnership_id = ? and supervisor_id = ? AND status IN ("pending", "approved")',
@@ -1181,8 +1470,8 @@ app.post('/supervisor/request', async (req, res) => {
 
         // Insert new supervision request
         const [result] = await db.query(
-            'INSERT INTO supervisor_requests (partnership_id, supervisor_id, subject) VALUES (?, ?, ?)',
-            [partnership_id, supervisor_id, subject]
+            'INSERT INTO supervisor_requests (partnership_id, supervisor_id, subject,description) VALUES (?, ?, ?,?)',
+            [partnership_id, supervisor_id, subject, description]
         );
 
         res.status(200).json({
@@ -1298,9 +1587,6 @@ app.post('/courses_announce/changeType', async (req, res) => {
         res.status(500).json({error: 'Error updating course type'});
     }
 });
-
-
-
 
 
 app.listen(port, () => {
